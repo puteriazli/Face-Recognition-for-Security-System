@@ -1,0 +1,70 @@
+# =============================================================================
+# config.yaml — Pusat semua pengaturan proyek
+# Edit file ini untuk ubah hyperparameter, tidak perlu sentuh kode Python
+# =============================================================================
+
+project:
+  name: "face_recognition_ewallet"
+  seed: 42
+
+# ── Path ──────────────────────────────────────────────────────────────────────
+# Semua path relatif terhadap BASE_DIR yang di-set di notebook
+data:
+  dataset_root: "data/raw/105_classes_pins_dataset"  # folder berisi subfolder per identitas
+  processed_dir: "data/processed"                    # hasil MTCNN crop disimpan di sini
+  image_size: 160          # InceptionResnetV1 native size = 160×160
+  min_samples: 10          # kelas dengan foto < 10 diabaikan
+  num_workers: 2           # thread DataLoader (2 cukup untuk Colab)
+  train_ratio: 0.70        # 70% untuk training
+  val_ratio:   0.15        # 15% untuk validasi
+  test_ratio:  0.15        # 15% untuk test final (tidak disentuh saat training)
+
+# ── Model ─────────────────────────────────────────────────────────────────────
+model:
+  pretrained: "vggface2"   # pretrained di 3.3 juta foto wajah (bukan ImageNet!)
+  dropout: 0.5             # dropout sebelum classifier head
+  embedding_dim: 512       # dimensi embedding output backbone
+
+# ── Training ─────────────────────────────────────────────────────────────────
+training:
+  epochs: 30               # total epoch (phase1 + phase2)
+  batch_size: 32
+  patience: 8              # early stopping: berhenti jika val_acc tidak naik 8 epoch
+  grad_clip: 1.0           # clip gradient agar tidak explode
+  mixed_precision: true    # AMP (Automatic Mixed Precision) untuk mempercepat training di GPU
+
+  # Phase 1 — Backbone frozen, hanya classifier head yang belajar
+  # Tujuan: model dapat fondasi discriminasi kelas dengan cepat
+  phase1_epochs: 5
+  phase1_lr: 0.001         # LR relatif besar, head belajar dari nol
+
+  # Phase 2 — Semua layer di-unfreeze, full fine-tuning
+  # Tujuan: refine seluruh model untuk akurasi optimal
+  phase2_epochs: 25
+  phase2_lr:     0.0001    # LR kecil agar pretrained weight tidak rusak
+  phase2_bb_lr:  0.00001   # backbone butuh LR lebih kecil dari head
+
+# ── Loss ─────────────────────────────────────────────────────────────────────
+loss:
+  label_smoothing: 0.1     # smoothing mencegah model terlalu overconfident
+
+# ── Augmentasi (HANYA untuk training set) ─────────────────────────────────────
+augmentation:
+  horizontal_flip: 0.5     # simulasi foto dari sudut berbeda
+  rotation: 10             # rotasi kecil (derajat) — wajah sensitif terhadap rotasi besar
+  brightness: 0.2          # variasi pencahayaan
+  contrast: 0.2
+  saturation: 0.1
+  random_erasing: 0.2      # simulasi wajah tertutup sebagian (masker, tangan, dll)
+
+# ── Inference ─────────────────────────────────────────────────────────────────
+inference:
+  threshold: 0.6           # minimum cosine similarity untuk dianggap "cocok"
+  top_k: 5                 # tampilkan top-5 kandidat
+
+# ── Output ────────────────────────────────────────────────────────────────────
+paths:
+  checkpoints: "checkpoints"
+  logs:        "logs"
+  results:     "results"
+  exports:     "exports"
